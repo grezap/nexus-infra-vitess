@@ -1,0 +1,27 @@
+[Unit]
+# Vitess vttablet -- the shard tablet sidecar: fronts the local mysqld, serves
+# queries from vtgate, registers the tablet in the etcd topo, participates in
+# VTOrc-driven reparenting. Delivered DISABLED by the vitess_tablet Packer
+# role; terraform/envs/vitess/role-overlay-vitess-tablet.tf renders
+# /etc/nexus-vitess/vttablet.env (--tablet-path alias, --init_keyspace,
+# --init_shard, --topo_global_server_address, gRPC mTLS certs) + enables +
+# starts it AFTER mysqlctld has the mysqld up.
+Description=Nexus Vitess vttablet (shard tablet sidecar)
+Documentation=https://vitess.io/docs/reference/programs/vttablet/
+After=network-online.target nexus-mysqlctld.service
+Wants=network-online.target
+Requires=nexus-mysqlctld.service
+
+[Service]
+Type=simple
+User={{ vitess_tablet_user }}
+Group={{ vitess_tablet_group }}
+EnvironmentFile=-/etc/nexus-vitess/vttablet.env
+ExecStart=/usr/local/bin/vttablet $VTTABLET_FLAGS
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=300
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

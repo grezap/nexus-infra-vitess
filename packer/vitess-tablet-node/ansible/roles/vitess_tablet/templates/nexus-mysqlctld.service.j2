@@ -1,0 +1,25 @@
+[Unit]
+# Vitess mysqlctld -- manages the local Percona Server mysqld lifecycle
+# (init, start, stop) on behalf of vttablet. Delivered DISABLED by the
+# vitess_tablet Packer role; terraform/envs/vitess/role-overlay-vitess-tablet.tf
+# renders /etc/nexus-vitess/mysqlctld.env (--tablet_uid, --mysql_port,
+# --db-config-* , --mysql_socket, mTLS) + enables + starts it.
+Description=Nexus Vitess mysqlctld (manages local Percona Server mysqld)
+Documentation=https://vitess.io/docs/reference/programs/mysqlctld/
+After=network-online.target vitess-node-firstboot.service
+Wants=network-online.target
+Requires=vitess-node-firstboot.service
+
+[Service]
+Type=simple
+User={{ vitess_tablet_user }}
+Group={{ vitess_tablet_group }}
+EnvironmentFile=-/etc/nexus-vitess/mysqlctld.env
+ExecStart=/usr/local/bin/mysqlctld $MYSQLCTLD_FLAGS
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=300
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

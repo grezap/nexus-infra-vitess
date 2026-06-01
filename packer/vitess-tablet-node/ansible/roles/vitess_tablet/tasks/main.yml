@@ -1,0 +1,180 @@
+---
+# vitess_tablet role -- per-engine bake for a Vitess tablet node (Phase 0.O).
+#
+# Installs:
+#   1. Percona Server 8.4 LTS (mysqld). Its lifecycle is owned by Vitess's
+#      `mysqlctld`, NOT systemd's mysql.service -- so apt's mysql.service is
+#      MASKED + its auto-created datadir wiped (mysqlctld initialises a fresh
+#      datadir under /var/lib/nexus-vitess at cluster bring-up).
+#   2. Vitess v24.0.1 binaries (vttablet + mysqlctl + mysqlctld + vtctldclient)
+#      from the upstream prebuilt tarball.
+#
+# Per-engine + per-cluster canon: the binaries + DISABLED units are baked here;
+# the terraform/envs/vitess role-overlays render per-host config (tablet alias,
+# cell `nexus`, keyspace `commerce`/shard, topo etcd addresses, mTLS cert paths)
+# then enable + start nexus-mysqlctld + nexus-vttablet.
+#
+# Vitess release-version compatibility (ADR-0041): v24.0.1 supports Percona
+# Server 8.4; VTGate advertises 8.4 by default. Percona/MySQL 8.0 is EOL
+# (April 2026), hence 8.4 LTS.
+
+# --- vitess system user/group --------------------------------------------
+- name: Create vitess system group
+  ansible.builtin.group:
+    name: "{{ vitess_tablet_group }}"
+    system: true
+    state: present
+
+- name: Create vitess system user
+  ansible.builtin.user:
+    name: "{{ vitess_tablet_user }}"
+    group: "{{ vitess_tablet_group }}"
+    groups: mysql
+    append: true
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ vitess_tablet_data_dir }}"
+    create_home: false
+    state: present
+
+# --- Percona Server 8.4 LTS ----------------------------------------------
+- name: Download percona-release deb
+  ansible.builtin.get_url:
+    url: https://repo.percona.com/apt/percona-release_latest.generic_all.deb
+    dest: /tmp/percona-release_latest.generic_all.deb
+    mode: '0644'
+
+- name: Install percona-release + prereqs
+  ansible.builtin.apt:
+    deb: /tmp/percona-release_latest.generic_all.deb
+    update_cache: true
+
+- name: Enable Percona Server 8.4 LTS repository
+  ansible.builtin.command: percona-release setup ps-84-lts --scheme https
+  args:
+    creates: /etc/apt/sources.list.d/percona-ps-84-lts-release.list
+
+# DEBIAN_FRONTEND=noninteractive so the percona-server-server postinst does not
+# prompt for a root password at bake (Vitess re-inits the datadir anyway).
+- name: Install Percona Server 8.4
+  ansible.builtin.apt:
+    name:
+      - percona-server-server
+      - percona-server-client
+    update_cache: true
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+# Vitess's mysqlctld owns the mysqld lifecycle -- stop + mask apt's unit and
+# wipe its auto-created datadir so mysqlctld can initialise a clean one under
+# /var/lib/nexus-vitess at cluster bring-up.
+- name: Stop apt-default mysqld
+  ansible.builtin.systemd:
+    name: mysql.service
+    state: stopped
+  failed_when: false
+
+- name: Mask apt-shipped mysql.service (Vitess mysqlctld owns mysqld)
+  ansible.builtin.systemd:
+    name: mysql.service
+    enabled: false
+    masked: true
+
+- name: Wipe apt-default mysqld datadir (mysqlctld re-inits under nexus-vitess)
+  ansible.builtin.shell: |
+    set -e
+    rm -rf /var/lib/mysql/* 2>/dev/null || true
+  changed_when: false
+
+# --- Vitess v24.0.1 binaries ---------------------------------------------
+- name: Download Vitess prebuilt tarball (v{{ vitess_tablet_vitess_version }})
+  ansible.builtin.get_url:
+    url: "https://github.com/vitessio/vitess/releases/download/v{{ vitess_tablet_vitess_version }}/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}.tar.gz"
+    dest: "/tmp/vitess-{{ vitess_tablet_vitess_version }}.tar.gz"
+    mode: '0644'
+
+- name: Extract Vitess tarball
+  ansible.builtin.unarchive:
+    src: "/tmp/vitess-{{ vitess_tablet_vitess_version }}.tar.gz"
+    dest: /tmp/
+    remote_src: true
+    creates: "/tmp/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}/bin/vttablet"
+
+# Only the tablet-side binaries are installed (vttablet manages the mysqld via
+# mysqlctld; vtctldclient is handy for on-node debugging). vtgate/vtctld/vtorc
+# live on the gate + control templates.
+- name: Install Vitess tablet binaries to /usr/local/bin
+  ansible.builtin.copy:
+    src: "/tmp/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - vttablet
+    - mysqlctl
+    - mysqlctld
+    - vtctldclient
+
+- name: Cleanup Vitess tarball + extract dir
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/vitess-{{ vitess_tablet_vitess_version }}.tar.gz"
+    - "/tmp/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}"
+
+# --- Per-node dirs --------------------------------------------------------
+- name: Create nexus-vitess directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ vitess_tablet_config_dir }}",      owner: root,                       group: "{{ vitess_tablet_group }}", mode: '0750' }
+    - { path: "{{ vitess_tablet_config_dir }}/tls",  owner: root,                       group: "{{ vitess_tablet_group }}", mode: '0750' }
+    - { path: "{{ vitess_tablet_data_dir }}",        owner: "{{ vitess_tablet_user }}", group: "{{ vitess_tablet_group }}", mode: '0750' }
+    - { path: "{{ vitess_tablet_log_dir }}",         owner: "{{ vitess_tablet_user }}", group: "{{ vitess_tablet_group }}", mode: '0750' }
+
+# --- systemd units (DISABLED at bake) ------------------------------------
+- name: Install nexus-mysqlctld.service + nexus-vttablet.service units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - nexus-mysqlctld.service
+    - nexus-vttablet.service
+  notify: Reload systemd
+
+- name: Ensure tablet units are disabled at bake
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+    daemon_reload: true
+  loop:
+    - nexus-mysqlctld.service
+    - nexus-vttablet.service
+
+# --- Verify ---------------------------------------------------------------
+- name: Verify Vitess + Percona tooling
+  ansible.builtin.command: "{{ item }}"
+  changed_when: false
+  loop:
+    - /usr/local/bin/vttablet --version
+    - /usr/local/bin/mysqlctld --version
+    - mysqld --version
+  register: vitess_tablet_verify
+
+- name: Show installed versions
+  ansible.builtin.debug:
+    msg:
+      - "vttablet:  {{ vitess_tablet_verify.results[0].stdout_lines[0] | default('?') }}"
+      - "mysqlctld: {{ vitess_tablet_verify.results[1].stdout_lines[0] | default('?') }}"
+      - "mysqld:    {{ vitess_tablet_verify.results[2].stdout_lines[0] | default('?') }}"

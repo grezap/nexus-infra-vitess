@@ -1,0 +1,15 @@
+---
+# vitess_tablet role defaults (Phase 0.O)
+
+vitess_tablet_user: vitess
+vitess_tablet_group: vitess
+
+vitess_tablet_config_dir: /etc/nexus-vitess
+vitess_tablet_data_dir: /var/lib/nexus-vitess
+vitess_tablet_log_dir: /var/log/nexus-vitess
+
+# Vitess release (prebuilt tarball: vitess-<version>-<build>.tar.gz on GitHub
+# releases). v24.0.1 is the latest GA; supports Percona Server 8.4 (ADR-0041).
+# Overridden at bake by the Packer --extra-vars from variables.pkr.hcl.
+vitess_tablet_vitess_version: "24.0.1"
+vitess_tablet_vitess_build: "61daa0a"

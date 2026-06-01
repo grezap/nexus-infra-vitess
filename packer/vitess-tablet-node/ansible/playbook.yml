@@ -1,0 +1,19 @@
+---
+- name: Configure vitess-tablet-node template (Phase 0.O)
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+
+  vars:
+    target_user: "{{ target_user | default('nexusadmin') }}"
+    vitess_tablet_vitess_version: "{{ vitess_tablet_vitess_version | default('24.0.1') }}"
+    vitess_tablet_vitess_build: "{{ vitess_tablet_vitess_build | default('61daa0a') }}"
+
+  roles:
+    - nexus_identity
+    - nexus_network
+    - nexus_firewall
+    - nexus_observability
+    - vitess_firstboot
+    - vitess_tablet
