@@ -1,0 +1,25 @@
+[Unit]
+# Vitess VTOrc -- the automated failover orchestrator (1 per cell). Monitors
+# every tablet's mysqld + replication health and performs reparenting
+# (promote a replica when a shard PRIMARY dies). Delivered DISABLED;
+# terraform/envs/vitess/role-overlay-vitess-control.tf renders
+# /etc/nexus-vitess/vtorc.env (topo addrs, --clusters_to_watch, gRPC mTLS +
+# the mysqld topo user creds) + enables + starts it on the control node.
+Description=Nexus Vitess VTOrc (automated failover orchestrator)
+Documentation=https://vitess.io/docs/reference/programs/vtorc/
+After=network-online.target vitess-node-firstboot.service
+Wants=network-online.target
+Requires=vitess-node-firstboot.service
+
+[Service]
+Type=simple
+User={{ vitess_gate_user }}
+Group={{ vitess_gate_group }}
+EnvironmentFile=-/etc/nexus-vitess/vtorc.env
+ExecStart=/usr/local/bin/vtorc $VTORC_FLAGS
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

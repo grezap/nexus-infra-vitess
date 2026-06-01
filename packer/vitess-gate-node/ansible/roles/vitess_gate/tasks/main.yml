@@ -1,0 +1,123 @@
+---
+# vitess_gate role -- per-engine bake for the Vitess control-plane + router
+# nodes (Phase 0.O). One template serves BOTH:
+#   - vtgate nodes (vitess-vtgate-1/2 @ .194/.195) -> run vtgate
+#   - the control node (vitess-control-1 @ .193)   -> run vtctld + VTOrc
+# All three use the same Vitess binaries + the `vitess` system user, no mysqld.
+# The terraform/envs/vitess role-overlays enable the right unit(s) per node by
+# its firstboot role (vtgate vs control).
+#
+# Installs the Vitess v24.0.1 binaries (vtgate, vtctld, vtorc, vtctldclient)
+# from the upstream prebuilt tarball. The nexus-vtgate / nexus-vtctld /
+# nexus-vtorc units are delivered DISABLED; the overlays render per-host
+# config (topo addresses, cell `nexus`, gRPC + MySQL-listener mTLS certs) into
+# /etc/nexus-vitess/<component>.env then enable + start.
+
+# --- vitess system user/group --------------------------------------------
+- name: Create vitess system group
+  ansible.builtin.group:
+    name: "{{ vitess_gate_group }}"
+    system: true
+    state: present
+
+- name: Create vitess system user
+  ansible.builtin.user:
+    name: "{{ vitess_gate_user }}"
+    group: "{{ vitess_gate_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ vitess_gate_config_dir }}"
+    create_home: false
+    state: present
+
+# --- Vitess v24.0.1 binaries ---------------------------------------------
+- name: Download Vitess prebuilt tarball (v{{ vitess_gate_vitess_version }})
+  ansible.builtin.get_url:
+    url: "https://github.com/vitessio/vitess/releases/download/v{{ vitess_gate_vitess_version }}/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}.tar.gz"
+    dest: "/tmp/vitess-{{ vitess_gate_vitess_version }}.tar.gz"
+    mode: '0644'
+
+- name: Extract Vitess tarball
+  ansible.builtin.unarchive:
+    src: "/tmp/vitess-{{ vitess_gate_vitess_version }}.tar.gz"
+    dest: /tmp/
+    remote_src: true
+    creates: "/tmp/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}/bin/vtgate"
+
+- name: Install Vitess control-plane + router binaries to /usr/local/bin
+  ansible.builtin.copy:
+    src: "/tmp/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - vtgate
+    - vtctld
+    - vtorc
+    - vtctldclient
+
+- name: Cleanup Vitess tarball + extract dir
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/vitess-{{ vitess_gate_vitess_version }}.tar.gz"
+    - "/tmp/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}"
+
+# --- Per-node dirs --------------------------------------------------------
+- name: Create nexus-vitess directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ vitess_gate_config_dir }}",     owner: root,                     group: "{{ vitess_gate_group }}", mode: '0750' }
+    - { path: "{{ vitess_gate_config_dir }}/tls", owner: root,                     group: "{{ vitess_gate_group }}", mode: '0750' }
+    - { path: "{{ vitess_gate_log_dir }}",        owner: "{{ vitess_gate_user }}", group: "{{ vitess_gate_group }}", mode: '0750' }
+
+# --- systemd units (all DISABLED at bake) --------------------------------
+- name: Install nexus-vtgate / nexus-vtctld / nexus-vtorc units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - nexus-vtgate.service
+    - nexus-vtctld.service
+    - nexus-vtorc.service
+  notify: Reload systemd
+
+- name: Ensure all gate/control units are disabled at bake
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+    daemon_reload: true
+  loop:
+    - nexus-vtgate.service
+    - nexus-vtctld.service
+    - nexus-vtorc.service
+
+# --- Verify ---------------------------------------------------------------
+- name: Verify Vitess tooling
+  ansible.builtin.command: "{{ item }}"
+  changed_when: false
+  loop:
+    - /usr/local/bin/vtgate --version
+    - /usr/local/bin/vtctld --version
+    - /usr/local/bin/vtorc --version
+    - /usr/local/bin/vtctldclient --version
+  register: vitess_gate_verify
+
+- name: Show installed Vitess versions
+  ansible.builtin.debug:
+    msg:
+      - "vtgate:       {{ vitess_gate_verify.results[0].stdout_lines[0] | default('?') }}"
+      - "vtctld:       {{ vitess_gate_verify.results[1].stdout_lines[0] | default('?') }}"
+      - "vtorc:        {{ vitess_gate_verify.results[2].stdout_lines[0] | default('?') }}"
+      - "vtctldclient: {{ vitess_gate_verify.results[3].stdout_lines[0] | default('?') }}"

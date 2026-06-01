@@ -1,0 +1,13 @@
+---
+# vitess_gate role defaults (Phase 0.O)
+
+vitess_gate_user: vitess
+vitess_gate_group: vitess
+
+vitess_gate_config_dir: /etc/nexus-vitess
+vitess_gate_log_dir: /var/log/nexus-vitess
+
+# Vitess release (prebuilt tarball vitess-<version>-<build>.tar.gz). v24.0.1 GA
+# (ADR-0041). Overridden at bake by Packer --extra-vars.
+vitess_gate_vitess_version: "24.0.1"
+vitess_gate_vitess_build: "61daa0a"

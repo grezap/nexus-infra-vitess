@@ -1,0 +1,25 @@
+[Unit]
+# Vitess vtctld -- the cluster control/admin daemon (gRPC :15999, web :15000).
+# vtctldclient + VTAdmin talk to it; it reads/writes the topo (etcd) for
+# ApplySchema / ApplyVSchema / InitShardPrimary / PlannedReparentShard.
+# Delivered DISABLED; terraform/envs/vitess/role-overlay-vitess-control.tf
+# renders /etc/nexus-vitess/vtctld.env (topo addrs, cell, gRPC mTLS certs) +
+# enables + starts it on the control node.
+Description=Nexus Vitess vtctld (cluster control plane)
+Documentation=https://vitess.io/docs/reference/programs/vtctld/
+After=network-online.target vitess-node-firstboot.service
+Wants=network-online.target
+Requires=vitess-node-firstboot.service
+
+[Service]
+Type=simple
+User={{ vitess_gate_user }}
+Group={{ vitess_gate_group }}
+EnvironmentFile=-/etc/nexus-vitess/vtctld.env
+ExecStart=/usr/local/bin/vtctld $VTCTLD_FLAGS
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

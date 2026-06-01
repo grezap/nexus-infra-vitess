@@ -1,0 +1,25 @@
+[Unit]
+# Vitess vtgate -- stateless MySQL-protocol query router (the client front
+# door, :15306). Reads the topo (etcd) for shard/tablet locations + routes
+# queries to the owning shard's tablets. Delivered DISABLED by the vitess_gate
+# Packer role; terraform/envs/vitess/role-overlay-vitess-gate.tf renders
+# /etc/nexus-vitess/vtgate.env (--mysql_server_version, --cell, topo addrs,
+# gRPC + MySQL-listener mTLS certs) + enables + starts it on the vtgate nodes.
+Description=Nexus Vitess vtgate (MySQL-protocol query router)
+Documentation=https://vitess.io/docs/reference/programs/vtgate/
+After=network-online.target vitess-node-firstboot.service
+Wants=network-online.target
+Requires=vitess-node-firstboot.service
+
+[Service]
+Type=simple
+User={{ vitess_gate_user }}
+Group={{ vitess_gate_group }}
+EnvironmentFile=-/etc/nexus-vitess/vtgate.env
+ExecStart=/usr/local/bin/vtgate $VTGATE_FLAGS
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
