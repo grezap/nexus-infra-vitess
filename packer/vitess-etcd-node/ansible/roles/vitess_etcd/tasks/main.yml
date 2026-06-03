@@ -13,7 +13,7 @@
 # ─── System user/group (apt doesn't create them since we're not using apt's etcd) ─
 - name: Create etcd system group
   ansible.builtin.group:
-    name: "{{ vitess_node_etcd_group }}"
+    name: "{{ vitess_etcd_group }}"
     system: true
     state: present
 
@@ -29,11 +29,11 @@
 
 - name: Create etcd system user
   ansible.builtin.user:
-    name: "{{ vitess_node_etcd_user }}"
-    group: "{{ vitess_node_etcd_group }}"
+    name: "{{ vitess_etcd_user }}"
+    group: "{{ vitess_etcd_group }}"
     system: true
     shell: /usr/sbin/nologin
-    home: "{{ vitess_node_etcd_data_dir }}"
+    home: "{{ vitess_etcd_data_dir }}"
     create_home: false
     state: present
 
@@ -46,42 +46,45 @@
     group: "{{ item.group }}"
     mode: "{{ item.mode }}"
   loop:
-    - { path: "{{ vitess_node_etcd_config_dir }}",     owner: root,                     group: "{{ vitess_node_etcd_group }}", mode: '0750' }
-    - { path: "{{ vitess_node_etcd_config_dir }}/tls", owner: root,                     group: "{{ vitess_node_etcd_group }}", mode: '0750' }
-    - { path: "{{ vitess_node_etcd_data_dir }}",       owner: "{{ vitess_node_etcd_user }}", group: "{{ vitess_node_etcd_group }}", mode: '0700' }
-    - { path: "{{ vitess_node_etcd_log_dir }}",        owner: "{{ vitess_node_etcd_user }}", group: "{{ vitess_node_etcd_group }}", mode: '0750' }
+    - { path: "{{ vitess_etcd_config_dir }}", owner: root, group: "{{ vitess_etcd_group }}", mode: '0750' }
+    - { path: "{{ vitess_etcd_config_dir }}/tls", owner: root, group: "{{ vitess_etcd_group }}", mode: '0750' }
+    - { path: "{{ vitess_etcd_data_dir }}", owner: "{{ vitess_etcd_user }}", group: "{{ vitess_etcd_group }}", mode: '0700' }
+    - { path: "{{ vitess_etcd_log_dir }}", owner: "{{ vitess_etcd_user }}", group: "{{ vitess_etcd_group }}", mode: '0750' }
 
 # ─── Download + install etcd tarball ──────────────────────────────────────
 - name: Check if etcd binary already installed at requested version
   ansible.builtin.shell: |
+    set -o pipefail
     if [ -x /usr/local/bin/etcd ]; then
       v=$(/usr/local/bin/etcd --version 2>/dev/null | head -1 | awk '{print $3}')
-      if [ "$v" = "{{ vitess_node_etcd_version }}" ]; then
+      if [ "$v" = "{{ vitess_etcd_version }}" ]; then
         echo present
       fi
     fi
+  args:
+    executable: /bin/bash
   register: vitess_etcd_check
   changed_when: false
   failed_when: false
 
-- name: Download etcd release tarball (v{{ vitess_node_etcd_version }})
+- name: Download etcd release tarball (v{{ vitess_etcd_version }})
   ansible.builtin.get_url:
-    url: "https://github.com/etcd-io/etcd/releases/download/v{{ vitess_node_etcd_version }}/etcd-v{{ vitess_node_etcd_version }}-linux-amd64.tar.gz"
-    dest: "/tmp/etcd-v{{ vitess_node_etcd_version }}-linux-amd64.tar.gz"
+    url: "https://github.com/etcd-io/etcd/releases/download/v{{ vitess_etcd_version }}/etcd-v{{ vitess_etcd_version }}-linux-amd64.tar.gz"
+    dest: "/tmp/etcd-v{{ vitess_etcd_version }}-linux-amd64.tar.gz"
     mode: '0644'
   when: "'present' not in (vitess_etcd_check.stdout | default(''))"
 
 - name: Extract etcd release tarball
   ansible.builtin.unarchive:
-    src: "/tmp/etcd-v{{ vitess_node_etcd_version }}-linux-amd64.tar.gz"
+    src: "/tmp/etcd-v{{ vitess_etcd_version }}-linux-amd64.tar.gz"
     dest: /tmp/
     remote_src: true
-    creates: "/tmp/etcd-v{{ vitess_node_etcd_version }}-linux-amd64/etcd"
+    creates: "/tmp/etcd-v{{ vitess_etcd_version }}-linux-amd64/etcd"
   when: "'present' not in (vitess_etcd_check.stdout | default(''))"
 
 - name: Install etcd binaries to /usr/local/bin
   ansible.builtin.copy:
-    src: "/tmp/etcd-v{{ vitess_node_etcd_version }}-linux-amd64/{{ item }}"
+    src: "/tmp/etcd-v{{ vitess_etcd_version }}-linux-amd64/{{ item }}"
     dest: "/usr/local/bin/{{ item }}"
     remote_src: true
     owner: root
@@ -98,8 +101,8 @@
     path: "{{ item }}"
     state: absent
   loop:
-    - "/tmp/etcd-v{{ vitess_node_etcd_version }}-linux-amd64.tar.gz"
-    - "/tmp/etcd-v{{ vitess_node_etcd_version }}-linux-amd64"
+    - "/tmp/etcd-v{{ vitess_etcd_version }}-linux-amd64.tar.gz"
+    - "/tmp/etcd-v{{ vitess_etcd_version }}-linux-amd64"
 
 # /usr/local/sbin/nexus-etcdctl -- operator wrapper that pre-loads
 # endpoints + TLS material from the standard nexus-etcd paths. Saves the

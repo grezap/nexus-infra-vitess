@@ -7,7 +7,7 @@
 
   vars:
     target_user: "{{ target_user | default('nexusadmin') }}"
-    vitess_node_etcd_version: "{{ vitess_node_etcd_version | default('3.5.16') }}"
+    vitess_etcd_version: "{{ vitess_etcd_version | default('3.5.16') }}"
 
   roles:
     - nexus_identity

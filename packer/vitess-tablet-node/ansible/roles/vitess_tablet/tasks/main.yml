@@ -99,7 +99,9 @@
 # --- Vitess v24.0.1 binaries ---------------------------------------------
 - name: Download Vitess prebuilt tarball (v{{ vitess_tablet_vitess_version }})
   ansible.builtin.get_url:
-    url: "https://github.com/vitessio/vitess/releases/download/v{{ vitess_tablet_vitess_version }}/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}.tar.gz"
+    url: >-
+      https://github.com/vitessio/vitess/releases/download/v{{ vitess_tablet_vitess_version }}/vitess-{{
+      vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}.tar.gz
     dest: "/var/tmp/vitess-{{ vitess_tablet_vitess_version }}.tar.gz"
     mode: '0644'
 
@@ -144,10 +146,10 @@
     group: "{{ item.group }}"
     mode: "{{ item.mode }}"
   loop:
-    - { path: "{{ vitess_tablet_config_dir }}",      owner: root,                       group: "{{ vitess_tablet_group }}", mode: '0750' }
-    - { path: "{{ vitess_tablet_config_dir }}/tls",  owner: root,                       group: "{{ vitess_tablet_group }}", mode: '0750' }
-    - { path: "{{ vitess_tablet_data_dir }}",        owner: "{{ vitess_tablet_user }}", group: "{{ vitess_tablet_group }}", mode: '0750' }
-    - { path: "{{ vitess_tablet_log_dir }}",         owner: "{{ vitess_tablet_user }}", group: "{{ vitess_tablet_group }}", mode: '0750' }
+    - { path: "{{ vitess_tablet_config_dir }}", owner: root, group: "{{ vitess_tablet_group }}", mode: '0750' }
+    - { path: "{{ vitess_tablet_config_dir }}/tls", owner: root, group: "{{ vitess_tablet_group }}", mode: '0750' }
+    - { path: "{{ vitess_tablet_data_dir }}", owner: "{{ vitess_tablet_user }}", group: "{{ vitess_tablet_group }}", mode: '0750' }
+    - { path: "{{ vitess_tablet_log_dir }}", owner: "{{ vitess_tablet_user }}", group: "{{ vitess_tablet_group }}", mode: '0750' }
 
 # --- systemd units (DISABLED at bake) ------------------------------------
 - name: Install nexus-mysqlctld.service + nexus-vttablet.service units

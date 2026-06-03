@@ -33,7 +33,9 @@
 # --- Vitess v24.0.1 binaries ---------------------------------------------
 - name: Download Vitess prebuilt tarball (v{{ vitess_gate_vitess_version }})
   ansible.builtin.get_url:
-    url: "https://github.com/vitessio/vitess/releases/download/v{{ vitess_gate_vitess_version }}/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}.tar.gz"
+    url: >-
+      https://github.com/vitessio/vitess/releases/download/v{{ vitess_gate_vitess_version }}/vitess-{{
+      vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}.tar.gz
     dest: "/var/tmp/vitess-{{ vitess_gate_vitess_version }}.tar.gz"
     mode: '0644'
 
@@ -75,9 +77,9 @@
     group: "{{ item.group }}"
     mode: "{{ item.mode }}"
   loop:
-    - { path: "{{ vitess_gate_config_dir }}",     owner: root,                     group: "{{ vitess_gate_group }}", mode: '0750' }
-    - { path: "{{ vitess_gate_config_dir }}/tls", owner: root,                     group: "{{ vitess_gate_group }}", mode: '0750' }
-    - { path: "{{ vitess_gate_log_dir }}",        owner: "{{ vitess_gate_user }}", group: "{{ vitess_gate_group }}", mode: '0750' }
+    - { path: "{{ vitess_gate_config_dir }}", owner: root, group: "{{ vitess_gate_group }}", mode: '0750' }
+    - { path: "{{ vitess_gate_config_dir }}/tls", owner: root, group: "{{ vitess_gate_group }}", mode: '0750' }
+    - { path: "{{ vitess_gate_log_dir }}", owner: "{{ vitess_gate_user }}", group: "{{ vitess_gate_group }}", mode: '0750' }
 
 # --- systemd units (all DISABLED at bake) --------------------------------
 - name: Install nexus-vtgate / nexus-vtctld / nexus-vtorc units

@@ -133,7 +133,7 @@ build {
     ]
     extra_arguments = [
       "--extra-vars", "target_user=${var.ssh_username}",
-      "--extra-vars", "vitess_node_etcd_version=${var.etcd_version}",
+      "--extra-vars", "vitess_etcd_version=${var.etcd_version}",
     ]
   }
 
