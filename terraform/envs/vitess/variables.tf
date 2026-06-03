@@ -229,6 +229,11 @@ variable "vitess_node_user" {
   type    = string
   default = "nexusadmin"
 }
+variable "vault_agent_version" {
+  type        = string
+  default     = "1.18.5"
+  description = "Vault Agent binary version installed on each Vitess-tier node (matches every prior tier)."
+}
 variable "vitess_cluster_timeout_minutes" {
   type    = number
   default = 20

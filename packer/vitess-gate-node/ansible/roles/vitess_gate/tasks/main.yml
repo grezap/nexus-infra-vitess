@@ -34,19 +34,19 @@
 - name: Download Vitess prebuilt tarball (v{{ vitess_gate_vitess_version }})
   ansible.builtin.get_url:
     url: "https://github.com/vitessio/vitess/releases/download/v{{ vitess_gate_vitess_version }}/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}.tar.gz"
-    dest: "/tmp/vitess-{{ vitess_gate_vitess_version }}.tar.gz"
+    dest: "/var/tmp/vitess-{{ vitess_gate_vitess_version }}.tar.gz"
     mode: '0644'
 
 - name: Extract Vitess tarball
   ansible.builtin.unarchive:
-    src: "/tmp/vitess-{{ vitess_gate_vitess_version }}.tar.gz"
-    dest: /tmp/
+    src: "/var/tmp/vitess-{{ vitess_gate_vitess_version }}.tar.gz"
+    dest: /var/tmp/
     remote_src: true
-    creates: "/tmp/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}/bin/vtgate"
+    creates: "/var/tmp/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}/bin/vtgate"
 
 - name: Install Vitess control-plane + router binaries to /usr/local/bin
   ansible.builtin.copy:
-    src: "/tmp/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}/bin/{{ item }}"
+    src: "/var/tmp/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}/bin/{{ item }}"
     dest: "/usr/local/bin/{{ item }}"
     remote_src: true
     owner: root
@@ -63,8 +63,8 @@
     path: "{{ item }}"
     state: absent
   loop:
-    - "/tmp/vitess-{{ vitess_gate_vitess_version }}.tar.gz"
-    - "/tmp/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}"
+    - "/var/tmp/vitess-{{ vitess_gate_vitess_version }}.tar.gz"
+    - "/var/tmp/vitess-{{ vitess_gate_vitess_version }}-{{ vitess_gate_vitess_build }}"
 
 # --- Per-node dirs --------------------------------------------------------
 - name: Create nexus-vitess directories

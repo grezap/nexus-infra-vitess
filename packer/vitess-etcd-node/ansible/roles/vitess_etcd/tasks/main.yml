@@ -17,6 +17,16 @@
     system: true
     state: present
 
+# The shared vitess-node-firstboot.sh chowns /etc/nexus-vitess/node-identity.env
+# to group `vitess` on EVERY role (the identity dir is group vitess cluster-wide).
+# The tablet + gate roles create this group; the etcd role must too, else
+# firstboot fails `chown: invalid group: root:vitess`. (0.O ratification fix.)
+- name: Create vitess system group (firstboot node-identity ownership)
+  ansible.builtin.group:
+    name: vitess
+    system: true
+    state: present
+
 - name: Create etcd system user
   ansible.builtin.user:
     name: "{{ vitess_node_etcd_user }}"

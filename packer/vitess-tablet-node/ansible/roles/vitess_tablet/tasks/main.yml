@@ -25,12 +25,13 @@
     system: true
     state: present
 
+# NB: the `mysql` group does not exist yet (Percona creates it below), so the
+# vitess user is created with only its primary group here; the supplementary
+# `mysql` membership is added AFTER the Percona install. (0.O build fix.)
 - name: Create vitess system user
   ansible.builtin.user:
     name: "{{ vitess_tablet_user }}"
     group: "{{ vitess_tablet_group }}"
-    groups: mysql
-    append: true
     system: true
     shell: /usr/sbin/nologin
     home: "{{ vitess_tablet_data_dir }}"
@@ -87,26 +88,34 @@
     rm -rf /var/lib/mysql/* 2>/dev/null || true
   changed_when: false
 
+# Now that Percona has created the `mysql` group, add the vitess user to it so
+# vttablet/mysqlctld (running as vitess) can manage the mysqld datadir. (0.O build fix.)
+- name: Add vitess user to the mysql group (post-Percona)
+  ansible.builtin.user:
+    name: "{{ vitess_tablet_user }}"
+    groups: mysql
+    append: true
+
 # --- Vitess v24.0.1 binaries ---------------------------------------------
 - name: Download Vitess prebuilt tarball (v{{ vitess_tablet_vitess_version }})
   ansible.builtin.get_url:
     url: "https://github.com/vitessio/vitess/releases/download/v{{ vitess_tablet_vitess_version }}/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}.tar.gz"
-    dest: "/tmp/vitess-{{ vitess_tablet_vitess_version }}.tar.gz"
+    dest: "/var/tmp/vitess-{{ vitess_tablet_vitess_version }}.tar.gz"
     mode: '0644'
 
 - name: Extract Vitess tarball
   ansible.builtin.unarchive:
-    src: "/tmp/vitess-{{ vitess_tablet_vitess_version }}.tar.gz"
-    dest: /tmp/
+    src: "/var/tmp/vitess-{{ vitess_tablet_vitess_version }}.tar.gz"
+    dest: /var/tmp/
     remote_src: true
-    creates: "/tmp/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}/bin/vttablet"
+    creates: "/var/tmp/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}/bin/vttablet"
 
 # Only the tablet-side binaries are installed (vttablet manages the mysqld via
 # mysqlctld; vtctldclient is handy for on-node debugging). vtgate/vtctld/vtorc
 # live on the gate + control templates.
 - name: Install Vitess tablet binaries to /usr/local/bin
   ansible.builtin.copy:
-    src: "/tmp/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}/bin/{{ item }}"
+    src: "/var/tmp/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}/bin/{{ item }}"
     dest: "/usr/local/bin/{{ item }}"
     remote_src: true
     owner: root
@@ -123,8 +132,8 @@
     path: "{{ item }}"
     state: absent
   loop:
-    - "/tmp/vitess-{{ vitess_tablet_vitess_version }}.tar.gz"
-    - "/tmp/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}"
+    - "/var/tmp/vitess-{{ vitess_tablet_vitess_version }}.tar.gz"
+    - "/var/tmp/vitess-{{ vitess_tablet_vitess_version }}-{{ vitess_tablet_vitess_build }}"
 
 # --- Per-node dirs --------------------------------------------------------
 - name: Create nexus-vitess directories

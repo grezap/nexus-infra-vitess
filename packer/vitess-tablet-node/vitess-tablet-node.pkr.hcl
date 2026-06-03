@@ -143,7 +143,7 @@ build {
       "test -x /usr/local/bin/mysqlctl",
       "test -x /usr/local/bin/vtctldclient",
       "/usr/local/bin/vttablet --version",
-      "mysqld --version",
+      "/usr/sbin/mysqld --version",
       "systemctl cat nexus-mysqlctld.service > /dev/null",
       "systemctl cat nexus-vttablet.service > /dev/null",
       "systemctl cat vitess-node-firstboot.service > /dev/null",
